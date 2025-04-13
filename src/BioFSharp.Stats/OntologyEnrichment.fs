@@ -32,14 +32,40 @@ module OntologyEnrichment =
         TotalNumberOfDE  : int
         ///Number of all items (expanded)
         TotalUniverse    : int
+        ///p value as calculated by hypergeometric test
         PValue           : float
-        }
+        } with
+        static member Create(ontologyTerm, itemsInBin, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers, pValue, ?FDR: float, ?QVal: float, ?Pi0: float) =
+            {OntologyTerm = ontologyTerm; ItemsInBin = itemsInBin; NumberOfDEsInBin = numberOfDEsInBin; 
+                NumberInBin = numberInBin; TotalNumberOfDE = totalNumberOfDE; TotalUniverse = totalUnivers; PValue = pValue;}
 
-    /// Creates a gene set enrichment result 
-    let createGseaResult ontologyTerm desInBin numberOfDEsInBin numberInBin totalNumberOfDE totalUnivers pValue = 
-        {OntologyTerm = ontologyTerm;ItemsInBin = desInBin; NumberOfDEsInBin = numberOfDEsInBin; 
-            NumberInBin = numberInBin; TotalNumberOfDE = totalNumberOfDE; TotalUniverse = totalUnivers; PValue = pValue}
-
+    /// Represents a gene set enrichment result with extended statistics 
+    type GseaResultFdrExtended<'a> = {
+        ///Ontology term e.g. MapMan term, GO term ...
+        OntologyTerm     : string
+        ///Sequence of single items associated to the ontology term 
+        ItemsInBin       : seq<OntologyItem<'a>>
+        ///Number of significantly altered items in 'OntologyTerm' bin
+        NumberOfDEsInBin : int
+        ///Number of items in 'OntologyTerm' bin
+        NumberInBin      : int
+        ///Number of significantly altered items within the total data set
+        TotalNumberOfDE  : int
+        ///Number of all items (expanded)
+        TotalUniverse    : int
+        ///p value as calculated by hypergeometric test
+        PValue           : float
+        ///false discovery rate (FDR) using Benjamini-Hochberg method
+        FDR_BH           : float
+        ///q value (FDR) as calculated by Storey method
+        QValue           : float
+        ///pi0 (proportion of null hypotheses) as calculated by Storey method
+        Pi0              : float
+        } with
+        static member Create(ontologyTerm, itemsInBin, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers, pValue, fdr: float, qVal: float, pi0: float) =
+            {OntologyTerm = ontologyTerm; ItemsInBin = itemsInBin; NumberOfDEsInBin = numberOfDEsInBin; 
+                NumberInBin = numberInBin; TotalNumberOfDE = totalNumberOfDE; TotalUniverse = totalUnivers; PValue = pValue; FDR_BH = fdr; QValue = qVal; Pi0 = pi0}
+    
     ///Splits an OntologyEntry with seperator concatenated TermIds
     let splitMultipleAnnotationsBy (separator:char) (item:OntologyItem<'A>) =
         let annotations = item.OntologyTerm.Split(separator)
@@ -116,7 +142,8 @@ module OntologyEnrichment =
         |> Seq.map (fun (oTerm,values) -> 
             let numberOfDEsInBin,numberInBin = countDE values
             let pValue = CalcHyperGeoPvalue numberOfDEsInBin numberInBin totalUnivers totalNumberOfDE _splitPvalueThreshold
-            createGseaResult oTerm values numberOfDEsInBin numberInBin totalNumberOfDE totalUnivers pValue)
+            GseaResult<'a>.Create(oTerm, values, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers,pValue)
+        )
 
 
     // #######################################################    
@@ -156,6 +183,7 @@ module OntologyEnrichment =
         |> Seq.map (fun (oTerm,values) -> 
             let numberOfDEsInBin,numberInBin = countDE values
             let pValue = CalcHyperGeoPvalue numberOfDEsInBin numberInBin totalUnivers totalNumberOfDE _splitPvalueThreshold
-            createGseaResult oTerm values numberOfDEsInBin numberInBin totalNumberOfDE totalUnivers pValue)
+            GseaResult<'a>.Create(oTerm, values, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers,pValue)
+        )
 
 
