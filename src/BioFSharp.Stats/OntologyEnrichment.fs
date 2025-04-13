@@ -88,8 +88,27 @@ module OntologyEnrichment =
             |> Seq.map (fun sTerm -> createOntologyItem oi.Id sTerm oi.GroupIndex oi.Item)
                         )
 
-
-    /// Extends leaf OntologyEntries to their full tree
+    /// <summary>Extends leaf OntologyEntries to their full tree</summary>
+    /// <remarks>Only works for hierarchical ontologies that mark their hierarchies by `.` (e.g. PS.lightreaction.LHCII)</remarks>
+    /// <param name="data">collection of OntologyItems</param>
+    /// <returns>A collection of `OntologyItems` in which each original element is expanded to each hierarchy level.</returns>
+    /// <example>
+    /// <code>
+    /// let data = [|
+    ///     createOntologyItem "id1" "photosynthesis.lightreaction" 0 "item1"
+    ///     createOntologyItem "id2" "protein.degradation" 0 "item2"
+    ///    createOntologyItem "id3" "photosynthesis.lightreaction.LHCI" 1 "item3"
+    /// let result = expandOntologyTree data
+    /// //result: seq<OntologyItem<string>> = seq [|
+    /// //   {Id = "id1"; OntologyTerm = "photosynthesis.lightreaction"; GroupIndex = 0; Item = "item1"}
+    /// //   {Id = "id1"; OntologyTerm = "photosynthesis"; GroupIndex = 0; Item = "item1"}
+    /// //   {Id = "id2"; OntologyTerm = "protein.degradation"; GroupIndex = 0; Item = "item2"}
+    /// //   {Id = "id2"; OntologyTerm = "protein"; GroupIndex = 0; Item = "item2"}
+    /// //   {Id = "id3"; OntologyTerm = "photosynthesis.lightreaction.LHCI"; GroupIndex = 1; Item = "item3"}
+    /// //   {Id = "id3"; OntologyTerm = "photosynthesis.lightreaction"; GroupIndex = 1; Item = "item3"}
+    /// //   {Id = "id3"; OntologyTerm = "photosynthesis"; GroupIndex = 1; Item = "item3"}
+    /// </code>
+    /// </example>
     let expandOntologyTree (data:seq<OntologyItem<'a>>) =
         data
         |> Seq.collect (fun oi -> 
