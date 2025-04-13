@@ -106,7 +106,7 @@ let expandedItems = OntologyEnrichment.expandOntologyTree items
 //minNumberInTerm:      what is the minimal number of items that should be 
 //                      within a bin to consider the bin at all (default 2).
 //data:                 sequence of expanded and split ontology items
-let gseaResult = OntologyEnrichment.CalcOverEnrichment 1 (Some 5) (Some 2) expandedItems
+let gseaResult = OntologyEnrichment.calcOverEnrichment 1 (Some 5) (Some 2) expandedItems
 
 
 let filterAndSortEnrichedModules =
