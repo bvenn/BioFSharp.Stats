@@ -65,7 +65,7 @@ module OntologyEnrichment =
         static member Create(ontologyTerm, itemsInBin, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers, pValue, fdr: float, qVal: float, pi0: float) =
             {OntologyTerm = ontologyTerm; ItemsInBin = itemsInBin; NumberOfDEsInBin = numberOfDEsInBin; 
                 NumberInBin = numberInBin; TotalNumberOfDE = totalNumberOfDE; TotalUniverse = totalUnivers; PValue = pValue; FDR_BH = fdr; QValue = qVal; Pi0 = pi0}
-    
+
     ///Splits an OntologyEntry with seperator concatenated TermIds
     let splitMultipleAnnotationsBy (separator:char) (item:OntologyItem<'A>) =
         let annotations = item.OntologyTerm.Split(separator)
@@ -97,73 +97,58 @@ module OntologyEnrichment =
             expandenTermIds |> Seq.map (fun sTerm -> createOntologyItem oi.Id sTerm oi.GroupIndex oi.Item) 
                        )
 
-
-    // ###########################################################################################################
-    // the hypergeometric distribution is a discrete probability distribution that describes the probability of 
-    //   k successes in
-    //   n draws from a finite 
-    //   x population of size containing
-    //   m successes without replacement (successes states)
-    /// Calculates p value based on hypergeometric distribution (pValue <= k)
-    let CalcHyperGeoPvalue numberOfDEsInBin numberInBin totalUnivers totalNumberOfDE (splitPvalueThreshold:int) =
-        if (numberOfDEsInBin > 1) then
-            let hp = FSharp.Stats.Distributions.Discrete.Hypergeometric.Init totalUnivers totalNumberOfDE numberInBin            
-            if numberInBin > splitPvalueThreshold then                                
-                // Calculate normal pValue
-                1. -  hp.CDF (float (numberOfDEsInBin - 1)) 
-            else
-                // Calculate split pValue
-                0.5 * ((1. -  hp.CDF(float(numberOfDEsInBin - 1)) ) + ( (1. -  hp.CDF(float(numberOfDEsInBin))) ) )
+    /// <summary>Calculates p value based on hypergeometric distribution (pValue <= k)</summary>
+    /// <remarks>the hypergeometric distribution is a discrete probability distribution that describes the probability of 
+    ///   k successes in
+    ///   n draws from a finite 
+    ///   N population of size containing
+    ///   K successes without replacement (successes states)</remarks>
+    /// <param name="numberOfDEsInBin">(k) number of significantly altered entities in the respective 'OntologyTerm' bin</param>
+    /// <param name="numberInBin">(n) number of entities within the respective 'OntologyTerm' bin</param>
+    /// <param name="totalUnivers">(N) total number of entities in the experiment</param>
+    /// <param name="totalNumberOfDE">(K) total number of significantly altered entities in the dataset</param>
+    /// <param name="splitPvalueThreshold">threshold until mid p values are calculated (default=5)</param>
+    /// <returns>A pvalue determined by hypergeometric test. If the number of entities within a bin is below the splitPValue
+    /// threshold a mid p value is calculated that is lower than its default</returns>
+    let calcHyperGeoPvalue numberOfDEsInBin numberInBin totalUnivers totalNumberOfDE (splitPvalueThreshold:int) =
+        let hp = FSharp.Stats.Distributions.Discrete.Hypergeometric.Init totalUnivers totalNumberOfDE numberInBin            
+        if numberInBin > splitPvalueThreshold then                                
+            // Calculate normal pValue
+            1. -  hp.CDF (float (numberOfDEsInBin - 1)) 
         else
-                nan
-        
-       
-    // #######################################################    
-    //  functional term enrichment is calculated according to following publication
-    //  http://bioinformatics.oxfordjournals.org/cgi/content/abstract/23/4/401
-    //  also includes mid-pValues
-    /// Calculates functional term enrichment
-    let CalcSimpleOverEnrichment (deGroupIndex:int) (splitPvalueThreshold:option<int>) (data:seq<OntologyItem<'a>>) =
-        let _splitPvalueThreshold   = defaultArg splitPvalueThreshold 5           
-        
-        let totalUnivers    = data |> Seq.length
-        let totalNumberOfDE = data |> Seq.filter (fun oi -> oi.GroupIndex = deGroupIndex) |> Seq.length
-        
-        // returns (DE count, all count)
-        let countDE (subSet:seq<OntologyItem<'a>>) =             
-            let countMap = 
-                subSet 
-                |> Seq.countBy (fun oi -> if oi.GroupIndex = deGroupIndex then true else false )
-                |> Map.ofSeq
-            (countMap.TryFindDefault 0 true,(countMap.TryFindDefault 0 true) + (countMap.TryFindDefault 0 false))
-        
-        data
-        |> Seq.groupBy ( fun oi -> oi.OntologyTerm)
-        |> Seq.map (fun (oTerm,values) -> 
-            let numberOfDEsInBin,numberInBin = countDE values
-            let pValue = CalcHyperGeoPvalue numberOfDEsInBin numberInBin totalUnivers totalNumberOfDE _splitPvalueThreshold
-            GseaResult<'a>.Create(oTerm, values, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers,pValue)
-        )
+            // Calculate split pValue
+            0.5 * ((1. -  hp.CDF(float(numberOfDEsInBin - 1)) ) + ( (1. -  hp.CDF(float(numberOfDEsInBin))) ) )
 
-
-    // #######################################################    
-    //  functional term enrichment is calculated according to following publication
-    //  http://bioinformatics.oxfordjournals.org/cgi/content/abstract/23/4/401
-    //  also includes mid-pValues
-    /// Calculates functional term enrichment
-    let CalcOverEnrichment (deGroupIndex:int) (splitPvalueThreshold:option<int>) (minNumberInTerm:option<int>) (data:seq<OntologyItem<'a>>) =
-        let _splitPvalueThreshold   = defaultArg splitPvalueThreshold 5
-        let _minNumberInTerm        = defaultArg minNumberInTerm 2
+    
+    /// <summary>Calculates functional term enrichment</summary>
+    /// <remarks>http://bioinformatics.oxfordjournals.org/cgi/content/abstract/23/4/401</remarks>
+    /// <param name="deGroupIndex">defines the index of the differential expression group</param>
+    /// <param name="splitPvalueThreshold">threshold until mid p values are calculated (default=5)</param>
+    /// <param name="minNumberInTerm">describes how many items are required in a bin to be taken into account for multiple testing correction (default = 2)</param>
+    /// <param name="data">sequence of ontology items</param>
+    /// <returns>sequence of GseaResult</returns>
+    /// <example>
+    /// <code>
+    /// let data = [|
+    ///     createOntologyItem "id1" "photosynthesis.lightreaction" 0 "item1"
+    ///     createOntologyItem "id2" "protein.degradation" 0 "item2"
+    ///    createOntologyItem "id3" "photosynthesis.lightreaction.LHCI" 1 "item3" // significantly different gene/protein/metabolite
+    /// calcOverEnrichment 1 (Some 5) (Some 2) data
+    /// </code>
+    /// </example>
+    let calcOverEnrichment (deGroupIndex:int) (splitPvalueThreshold:option<int>) (minNumberInTerm:option<int>) (data:seq<OntologyItem<'a>>) =
+        let _splitPvalueThreshold   = defaultArg splitPvalueThreshold 0
+        let _minNumberInBin        = defaultArg minNumberInTerm 0
         
         // Distinct by term and gene name
         // Has to be done by an ouside function
         //let distinctData    = data |> Seq.distinctBy (fun o -> o.displayID)                
         let gData           = data |> Seq.groupBy ( fun o -> o.OntologyTerm)
         // reduce to terms at least annotated with 2 items
-        let fData = gData |> Seq.filter ( fun (key:string,values:seq<OntologyItem<'a>>) -> Seq.length(values) >= _minNumberInTerm)
+        let fData = gData |> Seq.filter ( fun (key:string,values:seq<OntologyItem<'a>>) -> Seq.length(values) >= _minNumberInBin)
         let groupCount = fData |> Seq.collect (fun (key:string,values:seq<OntologyItem<'a>>) -> values ) |> Seq.countBy (fun o -> o.GroupIndex)
         
-        let totalUnivers    = groupCount |> Seq.fold (fun  (acc:int) (index:int,count:int) -> acc + count) 0
+        let totalUniverse    = groupCount |> Seq.fold (fun  (acc:int) (index:int,count:int) -> acc + count) 0
         let totalNumberOfDE = 
             let tmp = groupCount |> Seq.tryFind (fun (key,v) -> key = deGroupIndex)
             if tmp.IsNone then 
@@ -179,11 +164,69 @@ module OntologyEnrichment =
                 |> Map.ofSeq
             (countMap.TryFindDefault 0 true,(countMap.TryFindDefault 0 true) + (countMap.TryFindDefault 0 false))
         
-        fData
-        |> Seq.map (fun (oTerm,values) -> 
-            let numberOfDEsInBin,numberInBin = countDE values
-            let pValue = CalcHyperGeoPvalue numberOfDEsInBin numberInBin totalUnivers totalNumberOfDE _splitPvalueThreshold
-            GseaResult<'a>.Create(oTerm, values, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers,pValue)
+        let results = 
+            fData
+            |> Seq.map (fun (oTerm,values) -> 
+                let numberOfDEsInBin,numberInBin = countDE values
+                let pValue = calcHyperGeoPvalue numberOfDEsInBin numberInBin totalUniverse totalNumberOfDE _splitPvalueThreshold
+                GseaResult<'a>.Create(oTerm, values, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUniverse, pValue))
+        
+        results
+
+    [<Obsolete("Use OntologyEnrichment.calcOverEnrichment instead")>]
+    let CalcOverEnrichment (deGroupIndex:int) (splitPvalueThreshold:option<int>) (minNumberInTerm:option<int>) (data:seq<OntologyItem<'a>>)= 
+        calcOverEnrichment deGroupIndex splitPvalueThreshold minNumberInTerm data 
+
+    [<Obsolete("Use OntologyEnrichment.calcOverEnrichment instead")>]
+    let CalcSimpleOverEnrichment (deGroupIndex:int) (splitPvalueThreshold:option<int>) (minNumberInTerm:option<int>) (data:seq<OntologyItem<'a>>)= 
+        calcOverEnrichment deGroupIndex splitPvalueThreshold (Some 0) data 
+
+    /// <summary>Calculates functional term enrichment with additional multiple testing correction</summary>
+    /// <remarks>http://bioinformatics.oxfordjournals.org/cgi/content/abstract/23/4/401, storey q value, benjamini hochberg FDR</remarks>
+    /// <param name="deGroupIndex">defines the index of the differential expression group</param>
+    /// <param name="splitPvalueThreshold">threshold until mid p values are calculated (default=5)</param>
+    /// <param name="minNumberInTerm">describes how many items are required in a bin to be taken into account for multiple testing correction (default = 2)</param>
+    /// <param name="data">sequence of ontology items</param>
+    /// <returns>sequence of GseaResultFdrExtended</returns>
+    /// <example>
+    /// <code>
+    /// let data = [|
+    ///     createOntologyItem "id1" "photosynthesis.lightreaction" 0 "item1"
+    ///     createOntologyItem "id2" "protein.degradation" 0 "item2"
+    ///    createOntologyItem "id3" "photosynthesis.lightreaction.LHCI" 1 "item3" // significantly different gene/protein/metabolite
+    /// calcOverEnrichmentIncludeFDR 1 (Some 5) (Some 2) data
+    /// </code>
+    /// </example>
+    let calcOverEnrichmentIncludeFDR (deGroupIndex:int) (splitPvalueThreshold:option<int>) (minNumberInTerm:option<int>) (data:seq<OntologyItem<'a>>) =
+        let results = 
+            calcOverEnrichment deGroupIndex splitPvalueThreshold minNumberInTerm data 
+
+        let pvalues = 
+            results 
+            |> Seq.map _.PValue 
+            |> Array.ofSeq
+    
+        // fdr calculation 
+        let fdr_bh = 
+            FSharp.Stats.Testing.MultipleTesting.benjaminiHochbergFDR pvalues 
+            |> Array.ofSeq
+        
+        // q value calculation
+        let pi0 = FSharp.Stats.Testing.MultipleTesting.Qvalues.pi0Bootstrap pvalues
+        let qval = FSharp.Stats.Testing.MultipleTesting.Qvalues.ofPValues pi0 pvalues
+        results
+        |> Seq.mapi (fun i res -> 
+            let fdr = fdr_bh.[i]
+            let qval = qval.[i]
+            let pi0 = pi0
+            GseaResultFdrExtended<'a>.Create(
+                res.OntologyTerm, 
+                res.ItemsInBin, 
+                res.NumberOfDEsInBin, 
+                res.NumberInBin, 
+                res.TotalNumberOfDE, 
+                res.TotalUniverse, 
+                res.PValue, 
+                fdr, qval, pi0)
+            
         )
-
-
