@@ -35,9 +35,9 @@ module OntologyEnrichment =
         ///p value as calculated by hypergeometric test
         PValue           : float
         } with
-        static member Create(ontologyTerm, itemsInBin, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers, pValue, ?FDR: float, ?QVal: float, ?Pi0: float) =
+        static member Create(ontologyTerm, itemsInBin, numberOfDEsInBin, numberInBin, totalNumberOfDE, totalUnivers, pValue) =
             {OntologyTerm = ontologyTerm; ItemsInBin = itemsInBin; NumberOfDEsInBin = numberOfDEsInBin; 
-                NumberInBin = numberInBin; TotalNumberOfDE = totalNumberOfDE; TotalUniverse = totalUnivers; PValue = pValue;}
+                NumberInBin = numberInBin; TotalNumberOfDE = totalNumberOfDE; TotalUniverse = totalUnivers; PValue = pValue}
 
     /// Represents a gene set enrichment result with extended statistics 
     type GseaResultFdrExtended<'a> = {
